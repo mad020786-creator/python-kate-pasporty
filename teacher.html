@@ -1,0 +1,47 @@
+<!doctype html><html lang="kk"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Мұғалім кабинеті · Қате паспорты</title><style>
+*{box-sizing:border-box}body{margin:0;background:#f0f4ef;color:#172f36;font:16px/1.6 system-ui}main{max-width:1100px;margin:35px auto;padding:20px}a{color:#146b57}.card{background:#fffefa;border:1px solid #dbe5df;border-radius:16px;padding:24px;margin:20px 0}h1{font-size:32px;line-height:1.2}h2{font-size:21px}input,select,button{font:inherit;border:1px solid #bdcec3;border-radius:9px;padding:10px;max-width:100%}input,select{background:white}button{background:#146b57;color:white;cursor:pointer}button:disabled{opacity:.5;cursor:wait}label{display:block;font-weight:600;margin-top:12px}form input{display:block;width:100%;max-width:430px}.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.muted{font-size:14px;color:#60746e}.answer{white-space:pre-wrap;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#edf3ed;padding:15px;border-radius:9px}code{word-break:break-all}details{border-top:1px solid #dbe5df;padding:16px 0}summary{cursor:pointer;font-weight:650}.hidden,[hidden]{display:none!important}#message{white-space:pre-wrap;min-height:28px}#setup{background:#fff6dc;padding:20px;border-radius:12px}#login button{margin-top:18px}
+</style><main><a href="./">← Оқушы паспорты</a><h1>Мұғалім кабинеті</h1><p>Сыныпты ашыңыз, кодын оқушыларға беріңіз және жіберілген жауаптарды осы жерден қараңыз.</p><p id="message" role="status" aria-live="polite"></p><section id="setup" hidden><strong>Дерекқор әлі қосылмаған</strong><p>Кабинет дайындалған, бірақ оқушы жауаптары әлі жиналмайды. Іске қосу үшін дерекқорды баптау қажет.</p><a href="https://github.com/mad020786-creator/python-kate-pasporty/blob/main/SETUP.md">Іске қосу нұсқаулығы</a></section>
+<section id="loginPanel" class="card"><h2>Мұғалімнің кіруі</h2><form id="login"><label for="email">E-mail</label><input id="email" type="email" autocomplete="username" required><label for="password">Құпиясөз</label><input id="password" type="password" autocomplete="current-password" required><button id="loginButton">Кіру</button></form><p class="muted">Алдымен мұғалім аккаунтын дерекқор қызметінде құру керек. Бұл бетте оқушы тіркелмейді. Құпиясөзді ешкімге жібермеңіз.</p></section>
+<div id="dashboard" hidden><div class="row"><button id="logout">Шығу</button><span class="muted">Ортақ компьютерден шыққанда «Шығу» басыңыз.</span></div>
+<section class="card"><h2>Сыныптарым</h2><form id="createClass" class="row"><label for="className">Жаңа сынып</label><input id="className" maxlength="100" placeholder="Мысалы: 8 А" required><button>Сынып құру</button></form><label for="classes">Сыныпты таңдаңыз</label><select id="classes"><option value="">Сыныпты таңдаңыз</option></select><div id="classInfo"></div></section>
+<section class="card"><h2>Оқушы жауаптары</h2><div class="row"><button id="refresh">Жаңарту</button><button id="export">Жауаптарды жүктеу (.json)</button></div><p id="count" class="muted"></p><div id="answers"></div><button id="more" hidden>Келесі жауаптарды көрсету</button></section></div></main>
+<script src="backend-config.js"></script><script src="backend.js"></script><script>
+const $=id=>document.getElementById(id),api=PassportAPI,titles={task:'Тапсырма және код',result:'Күтілетін және нақты нәтиже',cause:'Қате себебі',solution:'Түзету және тексеру',conclusion:'Қорытынды'};
+let classes=[],rows=[],offset=0,viewVersion=0;
+function message(s){$('message').textContent=s}
+function showLogin(){viewVersion++;$('dashboard').hidden=true;$('loginPanel').hidden=false;$('answers').replaceChildren();$('classes').replaceChildren(new Option('Сыныпты таңдаңыз',''));$('classInfo').replaceChildren();classes=[];rows=[]}
+async function run(action,button){if(button)button.disabled=true;try{await action()}catch(e){message(e.message);if(e.message.includes('Қайта кіріңіз'))showLogin()}finally{if(button)button.disabled=false}}
+function node(tag,text){const e=document.createElement(tag);e.textContent=text;return e}
+async function loadClasses(){
+ classes=await api.request('/rest/v1/passport_classes?select=id,name,access_code,active&order=created_at.desc');
+ $('classes').replaceChildren(new Option('Сыныпты таңдаңыз',''));
+ classes.forEach(c=>$('classes').add(new Option(c.name,c.id)));
+}
+$('login').onsubmit=e=>{e.preventDefault();run(async()=>{await api.login($('email').value.trim(),$('password').value);$('password').value='';await loadClasses();$('loginPanel').hidden=true;$('dashboard').hidden=false;message('Кірдіңіз. Сыныпты таңдаңыз немесе жаңа сынып құрыңыз.')},$('loginButton'))};
+$('logout').onclick=()=>run(async()=>{await api.logout();showLogin();message('Кабинеттен шықтыңыз.')});
+$('createClass').onsubmit=e=>{e.preventDefault();run(async()=>{const name=$('className').value.trim();if(!name)throw Error('Сынып атауын жазыңыз.');await api.request('/rest/v1/passport_classes',{method:'POST',body:JSON.stringify({name})});$('className').value='';await loadClasses();message('Сынып құрылды. Тізімнен таңдап, кодын көшіріңіз.')},e.submitter)};
+function displayClass(){
+ const c=classes.find(x=>x.id===$('classes').value);$('classInfo').replaceChildren();if(!c)return;
+ $('classInfo').append(node('p','Сынып коды (тек оқушыларыңызға беріңіз):'),node('code',c.access_code));
+ const copy=node('button','Кодты көшіру');copy.onclick=()=>run(async()=>{await navigator.clipboard.writeText(c.access_code);message('Сынып коды көшірілді.')});
+ const toggle=node('button',c.active?'Жауап қабылдауды жабу':'Жауап қабылдауды ашу');
+ toggle.onclick=()=>run(async()=>{await api.request('/rest/v1/passport_classes?id=eq.'+encodeURIComponent(c.id),{method:'PATCH',body:JSON.stringify({active:!c.active})});c.active=!c.active;displayClass();message(c.active?'Жауап қабылдау ашық.':'Жауап қабылдау жабық.')},toggle);
+ $('classInfo').append(node('p',c.active?'Жауап қабылдау ашық.':'Жауап қабылдау жабық.'),copy,document.createTextNode(' '),toggle);
+}
+async function loadAnswers(append=false){
+ const id=$('classes').value,version=++viewVersion;
+ if(!append){rows=[];offset=0;$('answers').replaceChildren();$('count').textContent='';$('more').hidden=true}
+ if(!id)return;
+ const batch=await api.request('/rest/v1/passport_answers?select=id,student,grade,lesson_date,topic,answers,created_at&class_id=eq.'+encodeURIComponent(id)+'&order=created_at.desc,id.desc&limit=50&offset='+offset);
+ if(version!==viewVersion||id!==$('classes').value)return;
+ rows.push(...batch);offset=rows.length;
+ $('count').textContent=rows.length?rows.length+' жауап көрсетілді.':'Бұл сыныптан жауап әлі келмеді.';
+ for(const r of batch){const det=document.createElement('details');det.append(node('summary',r.student+' · '+r.grade+' · '+r.topic));det.append(node('p','Сабақ күні: '+r.lesson_date+' | Жіберілді: '+new Date(r.created_at).toLocaleString('kk-KZ')));
+ Object.entries(titles).forEach(([k,t])=>{det.append(node('h3',t));const a=node(k==='task'?'pre':'p',r.answers[k]||'');a.className='answer';det.append(a)});
+ $('answers').append(det)}
+ $('more').hidden=batch.length<50;
+}
+$('classes').onchange=()=>{displayClass();run(()=>loadAnswers())};$('refresh').onclick=()=>run(()=>loadAnswers(),$('refresh'));$('more').onclick=()=>run(()=>loadAnswers(true),$('more'));
+$('export').onclick=()=>{if(!rows.length){message('Алдымен жауаптары бар сыныпты таңдаңыз.');return}const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({class:classes.find(c=>c.id===$('classes').value)?.name,answers:rows},null,2)],{type:'application/json'}));a.href=url;a.download='passport-answers.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);message('Қазір көрсетілген '+rows.length+' жауап жүктелді. Қалғандары болса, алдымен «Келесі жауаптарды көрсету» басыңыз.')};
+if(!api.ready()){$('setup').hidden=false;$('loginPanel').hidden=true}
+</script></html>
